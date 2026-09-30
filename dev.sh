@@ -28,17 +28,20 @@ echo "==> Applying Django migrations"
 (cd "$BACKEND_DIR" && .venv/bin/python manage.py migrate --noinput)
 
 echo "==> Starting Django dev server (:8000)"
-(cd "$BACKEND_DIR" && .venv/bin/python manage.py runserver 0.0.0.0:8000) \
+(cd "$BACKEND_DIR" && exec .venv/bin/python manage.py runserver 0.0.0.0:8000) \
   >"$LOG_DIR/backend.log" 2>&1 &
 PIDS+=($!)
 
 echo "==> Starting Celery worker"
-(cd "$BACKEND_DIR" && .venv/bin/celery -A config worker -l info --pool=solo) \
+(cd "$BACKEND_DIR" && exec .venv/bin/celery -A config worker -l info --pool=solo) \
   >"$LOG_DIR/celery.log" 2>&1 &
 PIDS+=($!)
 
 echo "==> Starting Next.js dev server (:3000)"
-(cd "$FRONTEND_DIR" && npm run dev) \
+# Call the `next` binary directly (not `npm run dev`) so `exec` replaces this subshell
+# with the actual server process -- npm forks a child instead of exec-ing it, which left
+# orphaned `next dev` processes behind after a plain `kill` of the wrapper in the past.
+(cd "$FRONTEND_DIR" && exec ./node_modules/.bin/next dev) \
   >"$LOG_DIR/frontend.log" 2>&1 &
 PIDS+=($!)
 
@@ -48,13 +51,15 @@ All services starting:
   frontend  -> http://localhost:3000   (log: .dev-logs/frontend.log)
   backend   -> http://localhost:8000   (log: .dev-logs/backend.log)
   celery    -> (log: .dev-logs/celery.log)
-  db/redis  -> docker compose (postgres:5433, redis:6379)
+  db/redis  -> docker compose (postgres:5433, redis:6380)
 
 Tailing logs below. Press Ctrl+C to stop everything.
 EOF
 
 tail -f "$LOG_DIR/backend.log" "$LOG_DIR/celery.log" "$LOG_DIR/frontend.log" &
-TAIL_PID=$!
-PIDS+=("$TAIL_PID")
+PIDS+=($!)
 
-wait -n "${PIDS[@]}"
+# Plain `wait` (not `wait -n`, a bash 4.3+ feature -- macOS ships bash 3.2) blocks until
+# every job above exits. That's fine here: the normal exit path is Ctrl+C, which the
+# `trap` above turns into killing everything at once anyway.
+wait

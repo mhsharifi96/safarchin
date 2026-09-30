@@ -32,6 +32,14 @@ export default function TripDetailPage() {
   const [job, setJob] = useState<PlanningJob | null>(null);
   const [loadError, setLoadError] = useState("");
   const [generateError, setGenerateError] = useState("");
+  const [selectedDayId, setSelectedDayId] = useState<number | null>(null);
+  // Adjusted during render (React's recommended pattern for resetting state when an
+  // upstream value changes) rather than in an effect, to avoid an extra commit/re-render.
+  const [lastItineraryId, setLastItineraryId] = useState<number | undefined>(undefined);
+  if (itinerary?.id !== lastItineraryId) {
+    setLastItineraryId(itinerary?.id);
+    setSelectedDayId(null);
+  }
 
   const loadTrip = useCallback(() => {
     apiFetch<Trip>(`/api/trips/${tripId}/`)
@@ -90,12 +98,20 @@ export default function TripDetailPage() {
     [itinerary, accommodations]
   );
 
+  // The selected day's stops, in visit order, for TripMap to draw as a route.
+  const selectedDayRoute = useMemo(() => {
+    const day = itinerary?.days.find((d) => d.id === selectedDayId);
+    return (day?.items.map((i) => i.place).filter(Boolean) || []) as Array<
+      NonNullable<Accommodation["place"]>
+    >;
+  }, [itinerary, selectedDayId]);
+
   if (loadError) return <ErrorState message={loadError} />;
   if (!trip) return <LoadingState />;
 
   return (
     <div className="mx-auto max-w-6xl px-margin py-space-lg">
-      <div className="mb-space-lg flex flex-wrap items-center justify-between gap-space-sm">
+      <div className="sticky top-16 z-40 -mx-margin mb-space-lg flex flex-wrap items-center justify-between gap-space-sm bg-surface/90 px-margin py-space-sm shadow-[0_1px_8px_rgba(0,0,0,0.05)] backdrop-blur-xl">
         <div>
           <h1 className="font-headline font-headline-md text-headline-md font-bold text-on-surface">
             {trip.title || `${trip.origin} به ${trip.destination}`}
@@ -141,11 +157,15 @@ export default function TripDetailPage() {
 
         <div className="flex flex-col gap-space-lg">
           <Card className="h-[320px] overflow-hidden p-1">
-            <TripMap places={places} origin={trip.origin} />
+            <TripMap places={places} origin={trip.origin} route={selectedDayRoute} />
           </Card>
 
           {itinerary ? (
-            <ItineraryView itinerary={itinerary} />
+            <ItineraryView
+              itinerary={itinerary}
+              selectedDayId={selectedDayId}
+              onSelectDay={setSelectedDayId}
+            />
           ) : (
             <Card variant="prominent">
               <p className="font-body-md text-body-md text-on-surface-variant">

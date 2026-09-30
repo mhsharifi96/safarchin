@@ -102,12 +102,14 @@ export default function PreferencesSummary({
     <div className="flex flex-col gap-space-md">
       <div className="grid grid-cols-2 gap-space-sm">
         <Input
+          key={`origin-${trip.origin}`}
           label="مبدا"
           icon="trip_origin"
           defaultValue={trip.origin}
           onBlur={(e) => patchTrip({ origin: e.target.value })}
         />
         <Input
+          key={`destination-${trip.destination}`}
           label="مقصد"
           icon="flag"
           defaultValue={trip.destination}
@@ -144,6 +146,7 @@ export default function PreferencesSummary({
 
       <div className="grid grid-cols-2 gap-space-sm">
         <Input
+          key={`adults-${prefs.adults_count}`}
           label="تعداد بزرگسال"
           icon="group"
           type="number"
@@ -152,6 +155,7 @@ export default function PreferencesSummary({
           onBlur={(e) => patchPrefs({ adults_count: e.target.value ? Number(e.target.value) : null })}
         />
         <Input
+          key={`children-${prefs.children_count}`}
           label="تعداد کودک"
           icon="child_care"
           type="number"
@@ -185,6 +189,7 @@ export default function PreferencesSummary({
 
       <div className="grid grid-cols-2 gap-space-sm">
         <Input
+          key={`budget-${prefs.budget_amount}`}
           label="بودجه (تومان)"
           icon="payments"
           type="number"
@@ -200,6 +205,7 @@ export default function PreferencesSummary({
       </div>
 
       <Input
+        key={`interests-${prefs.interests.join("، ")}`}
         label="علایق (با ویرگول جدا کنید)"
         icon="interests"
         defaultValue={prefs.interests.join("، ")}
@@ -214,6 +220,7 @@ export default function PreferencesSummary({
       />
 
       <Input
+        key={`accessibility-${prefs.accessibility_notes}`}
         label="محدودیت پیاده‌روی یا دسترسی"
         icon="accessible"
         defaultValue={prefs.accessibility_notes}

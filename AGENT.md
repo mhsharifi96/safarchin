@@ -44,6 +44,10 @@ Before assuming nothing is running, check first — `docker compose ps`, `lsof -
   Celery special-cases those exact names at app-init and they silently win over
   `config_from_object(settings)`. Use `REDIS_URL` / `CELERY_BROKER_REDIS_URL` as already defined.
 - Task results go through `django_celery_results` (django-db backend), not Redis.
+- Redis runs on host port **6380**, not 6379 (same reasoning as Postgres on 5433) — something else on the
+  machine can silently bind 6379 and reset every connection with a confusing `ConnectionResetError` deep in
+  `django_redis`/`kombu`, breaking sessions, throttling, and the Celery broker all at once. If you ever see
+  that error, `lsof -nP -iTCP:6379 -sTCP:LISTEN` before assuming Docker/Redis itself is broken.
 - Everything that needs a real external API key (OpenAI via `langchain-openai`, Tavily, Neshan) fails with an
   explicit, user-visible error message when the key is missing — never silently stubbed/faked. Preserve that
   behavior; don't add a mock fallback that could look like a real result.
