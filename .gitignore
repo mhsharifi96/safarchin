@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.sqlite3
+staticfiles/
+media/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+frontend/.env*.local
+
+# Env files
+.env
+.env.*
+!.env.example
+!*/.env.example
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Celery
+celerybeat-schedule
+
+# Logs
+*.log

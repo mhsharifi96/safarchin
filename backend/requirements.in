@@ -1,0 +1,16 @@
+Django>=5.2,<5.3
+djangorestframework>=3.18,<3.19
+django-cors-headers
+psycopg[binary]>=3.2,<4
+django-redis>=5.4,<6
+redis>=5.0,<6
+celery[redis]>=5.4,<6
+django-celery-results>=2.5,<3
+django-environ>=0.11,<1
+gunicorn>=23.0,<24
+langchain-openai>=1.6,<2
+langchain-core>=1.6,<2
+langsmith>=0.3,<1
+tavily-python>=0.5,<1
+pydantic>=2.9,<3
+httpx>=0.27,<1
