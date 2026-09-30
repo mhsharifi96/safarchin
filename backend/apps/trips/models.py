@@ -150,7 +150,10 @@ class PlaceCandidate(models.Model):
     longitude = models.FloatField(null=True, blank=True)
     neshan_poi_id = models.CharField(max_length=200, blank=True)
     source = models.CharField(max_length=20, default="model")  # tavily | neshan | model
-    source_url = models.URLField(blank=True)
+    # Default URLField max_length (200) is too short for real-world URLs -- a Tavily web
+    # research result with a URL-encoded Persian slug hit 230 chars and crashed itinerary
+    # generation outright (DataError, whole job failed). 500 comfortably covers this.
+    source_url = models.URLField(blank=True, max_length=500)
     raw_data = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

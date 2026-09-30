@@ -26,24 +26,51 @@ function formatTime(time: string | null): string {
   return toPersianDigits(time.slice(0, 5));
 }
 
-export default function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
+export default function ItineraryView({
+  itinerary,
+  selectedDayId,
+  onSelectDay,
+}: {
+  itinerary: Itinerary;
+  /** The day whose route is currently drawn on the map, if any. */
+  selectedDayId?: number | null;
+  onSelectDay?: (dayId: number | null) => void;
+}) {
   return (
     <div className="flex flex-col gap-space-lg">
       {itinerary.summary && (
         <p className="whitespace-pre-line font-body-sm text-body-sm text-on-surface-variant">{itinerary.summary}</p>
       )}
-      {itinerary.days.map((day) => (
-        <Card key={day.id} variant="prominent">
-          <h3 className="mb-space-md flex items-center gap-space-xs font-headline-sm text-headline-sm font-semibold text-on-surface">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-container font-label-sm text-label-sm font-bold text-on-primary">
-              {toPersianDigits(day.day_index)}
-            </span>
-            <span>
-              روز {toPersianDigits(day.day_index)}
-              {day.date && ` · ${isoToJalaliDisplay(day.date)}`}
-              {day.city && ` · ${day.city}`}
-            </span>
-          </h3>
+      {itinerary.days.map((day) => {
+        const isSelected = selectedDayId === day.id;
+        return (
+        <Card key={day.id} variant="prominent" className={isSelected ? "ring-2 ring-primary-container" : undefined}>
+          <div className="mb-space-md flex items-center justify-between gap-space-sm">
+            <h3 className="flex items-center gap-space-xs font-headline-sm text-headline-sm font-semibold text-on-surface">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-container font-label-sm text-label-sm font-bold text-on-primary">
+                {toPersianDigits(day.day_index)}
+              </span>
+              <span>
+                روز {toPersianDigits(day.day_index)}
+                {day.date && ` · ${isoToJalaliDisplay(day.date)}`}
+                {day.city && ` · ${day.city}`}
+              </span>
+            </h3>
+            {onSelectDay && (
+              <button
+                type="button"
+                onClick={() => onSelectDay(isSelected ? null : day.id)}
+                className={
+                  isSelected
+                    ? "flex shrink-0 items-center gap-1 rounded-full bg-primary-container px-space-sm py-1 font-label-sm text-label-sm font-semibold text-on-primary"
+                    : "flex shrink-0 items-center gap-1 rounded-full bg-surface-container-low px-space-sm py-1 font-label-sm text-label-sm font-semibold text-on-surface-variant hover:bg-secondary-fixed/30"
+                }
+              >
+                <span className="material-symbols-outlined text-[14px]">route</span>
+                {isSelected ? "پنهان کردن مسیر" : "نمایش مسیر روی نقشه"}
+              </button>
+            )}
+          </div>
           <ol className="flex flex-col gap-space-md">
             {day.items.map((item) => (
               <li key={item.id} className="flex gap-space-sm border-r-2 border-primary-fixed pr-space-sm">
@@ -72,7 +99,8 @@ export default function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
             ))}
           </ol>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -13,6 +13,7 @@ from apps.trips.models import Accommodation, Itinerary, ItineraryDay, ItineraryI
 
 from .llm import get_chat_model
 from .repair import run_with_structured_repair
+from .route_optimize import optimize_day_order
 from .schemas import ItineraryPlan, PlaceRef
 from .tools.neshan import (
     neshan_geocode_tool,
@@ -103,15 +104,23 @@ def _persist_place(trip: Trip, place: PlaceRef | None, cache: dict) -> PlaceCand
     key = (place.name, place.latitude, place.longitude)
     if key in cache:
         return cache[key]
+    # Web research / geocoding results are external, unbounded text (a Tavily result URL
+    # with a URL-encoded Persian slug once hit 230 chars and crashed the whole generation
+    # job with a raw DataError). Truncate to each column's actual max_length so one long
+    # value never takes down an otherwise-good itinerary.
+    def _fit(value: str, field_name: str) -> str:
+        max_length = PlaceCandidate._meta.get_field(field_name).max_length
+        return value[:max_length] if max_length else value
+
     obj = PlaceCandidate.objects.create(
         trip=trip,
-        name=place.name,
-        category=place.category,
-        address=place.address,
+        name=_fit(place.name, "name"),
+        category=_fit(place.category, "category"),
+        address=_fit(place.address, "address"),
         latitude=place.latitude,
         longitude=place.longitude,
         source=place.source,
-        source_url=place.source_url,
+        source_url=_fit(place.source_url, "source_url"),
     )
     cache[key] = obj
     return obj
@@ -156,7 +165,7 @@ def generate_itinerary(trip: Trip) -> Itinerary:
             city=day_plan.city,
             notes=day_plan.notes,
         )
-        for order, item_plan in enumerate(day_plan.items):
+        for order, item_plan in enumerate(optimize_day_order(day_plan.items)):
             place_obj = _persist_place(trip, item_plan.place, place_cache)
             ItineraryItem.objects.create(
                 day=day,

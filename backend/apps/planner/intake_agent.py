@@ -66,6 +66,12 @@ def _build_messages(trip: Trip) -> list:
 
 
 def _apply_extraction(trip: Trip, extraction: PreferencesExtraction) -> None:
+    # A plan already exists for the OLD values -- if the user changes a field that
+    # actually shapes the itinerary (destination, dates, budget) mid-conversation,
+    # that plan is now stale and must not keep silently claiming to be "planned".
+    was_planned = trip.status == Trip.Status.PLANNED
+    core_changed = False
+
     trip_fields = {}
     if extraction.origin:
         trip_fields["origin"] = extraction.origin
@@ -75,9 +81,11 @@ def _apply_extraction(trip: Trip, extraction: PreferencesExtraction) -> None:
         trip_fields["start_date"] = extraction.start_date
     if extraction.end_date:
         trip_fields["end_date"] = extraction.end_date
-    if trip_fields:
-        for key, value in trip_fields.items():
-            setattr(trip, key, value)
+    for key, value in trip_fields.items():
+        old_value = getattr(trip, key)
+        if str(old_value or "") != str(value):
+            core_changed = True
+        setattr(trip, key, value)
 
     prefs = trip.preferences
     pref_field_names = [
@@ -101,6 +109,13 @@ def _apply_extraction(trip: Trip, extraction: PreferencesExtraction) -> None:
     for name in pref_field_names:
         value = getattr(extraction, name)
         if value is not None:
+            # Of all the preference fields, only the budget actually invalidates an
+            # existing plan the way destination/dates do -- pace, interests, transport,
+            # etc. can be nudged without the itinerary itself being wrong.
+            if name == "budget_amount":
+                old_budget = getattr(prefs, name)
+                if old_budget is None or float(old_budget) != value:
+                    core_changed = True
             setattr(prefs, name, value)
 
     if extraction.assumptions:
@@ -111,6 +126,11 @@ def _apply_extraction(trip: Trip, extraction: PreferencesExtraction) -> None:
 
     if extraction.ready_for_summary:
         trip.status = Trip.Status.READY_FOR_GENERATION
+    elif was_planned and core_changed:
+        # Still "planned" per the LLM's own judgement would be wrong here: the itinerary
+        # on file no longer matches origin/destination/dates/budget. Send it back through
+        # the summary/regenerate flow instead of leaving a mismatched plan looking current.
+        trip.status = Trip.Status.COLLECTING_INFO
 
     trip.save()
     prefs.save()

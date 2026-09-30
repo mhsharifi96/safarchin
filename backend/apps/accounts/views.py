@@ -90,9 +90,15 @@ class VerifyEmailView(APIView):
         serializer = VerifyEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = _decode_uid(serializer.validated_data["uid"])
-        if user is None or not email_verification_token_generator.check_token(
-            user, serializer.validated_data["token"]
-        ):
+        if user is None:
+            return Response({"detail": "لینک تایید نامعتبر یا منقضی شده است."}, status=status.HTTP_400_BAD_REQUEST)
+        # The token's hash includes is_email_verified, so it deliberately stops validating
+        # the moment it's used once -- re-opening the same email (or its link twice) hits
+        # this, and it's a success, not an error. Check it before the token so a correct
+        # but now-stale token doesn't get reported as "invalid/expired".
+        if user.is_email_verified:
+            return Response({"detail": "ایمیل شما قبلاً تایید شده است."})
+        if not email_verification_token_generator.check_token(user, serializer.validated_data["token"]):
             return Response({"detail": "لینک تایید نامعتبر یا منقضی شده است."}, status=status.HTTP_400_BAD_REQUEST)
         user.is_email_verified = True
         user.save(update_fields=["is_email_verified"])

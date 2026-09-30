@@ -34,7 +34,8 @@ docker compose up -d db redis
 ```
 
 Postgres is exposed on host port **5433** (not 5432, to avoid clashing with other local Postgres
-containers), Redis on 6379. See `docker-compose.yml`.
+containers), Redis on **6380** (not 6379 -- see `docker-compose.yml`'s comment: something else on your
+machine may already be listening on 6379 and silently reset every connection). See `docker-compose.yml`.
 
 ### 2. Backend
 
