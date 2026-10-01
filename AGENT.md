@@ -20,19 +20,27 @@ geocoded places/routes on a map and accommodation suggestions. Everything is RTL
 - `dev.sh` — runs the whole stack natively (no Docker for the app processes) in one foreground command;
   starts Postgres/Redis via `docker compose up -d --wait db redis`, then Django, Celery, and Next.js as
   background jobs with logs in `.dev-logs/`, Ctrl+C stops everything.
+- `docker-compose.prod.yml` + `run.sh` — production stack for a real server: built images (no bind mounts),
+  gunicorn instead of `runserver`, a built `next start` instead of `next dev` (via `frontend/Dockerfile.prod`,
+  which needs `NEXT_PUBLIC_*` as build args, not runtime env — Next.js inlines those at build time), and
+  Postgres/Redis not published to the host. `./run.sh` warns (doesn't block) if `backend/.env` still has
+  `DJANGO_DEBUG=True` or the dev-default `DJANGO_ALLOWED_HOSTS`. No TLS/reverse proxy/backups included — put
+  nginx/Caddy/Traefik in front for real public traffic.
 
 ## Running things
 
-Two ways to run the full stack — don't run both at once, they'll fight over ports 3000/8000:
+Don't run more than one of these at once — they'll fight over ports 3000/8000:
 
-- **All-in-Docker:** `docker compose up -d` (or `--build` after dependency changes).
-- **Native (faster iteration):** `./dev.sh`, or start pieces individually:
+- **Dev, all-in-Docker:** `docker compose up -d` (or `--build` after dependency changes).
+- **Dev, native (faster iteration):** `./dev.sh`, or start pieces individually:
   ```bash
   docker compose up -d --wait db redis
   cd backend && .venv/bin/python manage.py runserver 0.0.0.0:8000
   cd backend && .venv/bin/celery -A config worker -l info --pool=solo   # --pool=solo needed on macOS
   cd frontend && npm run dev
   ```
+- **Production, on a server:** `./run.sh` (needs real `backend/.env` / `frontend/.env.local`, not the dev
+  defaults — see above).
 
 Before assuming nothing is running, check first — `docker compose ps`, `lsof -iTCP:3000 -iTCP:8000 -sTCP:LISTEN`.
 

@@ -1,0 +1,93 @@
+name: safarchin
+
+# Production stack: no bind-mounted source, no dev servers, db/redis not
+# published to the host. Built images only, run via `./run.sh` (which also
+# exports frontend/.env.local so NEXT_PUBLIC_* build args below resolve).
+services:
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-safarchin}
+      POSTGRES_USER: ${POSTGRES_USER:-safarchin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-safarchin}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-safarchin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Intentionally no `ports:` -- only reachable from other containers on this network.
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Same reasoning as db: no host port published.
+
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      # Compose-network service names/ports, overriding backend/.env's host-oriented
+      # localhost:<port> values (which are only correct for running natively).
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_REDIS_URL: redis://redis:6379/1
+    ports:
+      - "${BACKEND_HOST_PORT:-8025}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+
+  celery_worker:
+    build:
+      context: ./backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_REDIS_URL: redis://redis:6379/1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A config worker -l info
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        # Next.js inlines NEXT_PUBLIC_* at build time, not container runtime -- these
+        # must come from `docker compose build`'s env, not an `env_file:` here. run.sh
+        # exports frontend/.env.local before building so these resolve correctly.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_NESHAN_WEB_SDK_KEY: ${NEXT_PUBLIC_NESHAN_WEB_SDK_KEY}
+    restart: always
+    ports:
+      - "${FRONTEND_HOST_PORT:-3025}:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

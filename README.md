@@ -27,6 +27,9 @@ Two ways to run this — pick one (running both at once will fight over ports 30
   (Django, Celery, Next.js) as native processes on your machine, tailing all their logs. Or follow the
   manual steps below to run each piece yourself.
 
+For running this on an actual server, see **Deploying** below instead — it's a different, production-mode
+setup (`docker-compose.prod.yml` / `run.sh`), not just this same compose file pointed at a public IP.
+
 ### 1. Infra (Postgres + Redis)
 
 ```bash
@@ -116,10 +119,21 @@ own generated tokens, not approximations. See [`docs/design-sync.md`](docs/desig
 tokens, the screen→route/component mapping, and the couple of Stitch screens intentionally not carried
 over (guest login, a tab-style bottom nav) because they don't map to existing routes/backend functionality.
 
+## Deploying
+
+`./run.sh` on the target server, after real secrets are in `backend/.env` and `frontend/.env.local` (copy
+from the `.example` files — the dev defaults, e.g. `DJANGO_DEBUG=True` and
+`DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1`, must be changed or `run.sh` warns loudly and the app won't accept
+real traffic). It builds and runs `docker-compose.prod.yml`: gunicorn instead of `runserver`, a built `next
+start` instead of `next dev` (see `frontend/Dockerfile.prod` — `NEXT_PUBLIC_*` vars are baked in at *build*
+time, not read at container runtime), no bind-mounted source, and Postgres/Redis not published to the host.
+
+Not included: TLS and a reverse proxy in front of ports 3000/8000 (put nginx/Caddy/Traefik there), and a
+backup strategy for the `pgdata` volume. Nothing has been deployed anywhere by this project itself — this is
+tooling to let you do that, not a hosted instance.
+
 ## Known limitations
 
 - Accommodation selection persists the choice and flips the trip back to "ready for generation" so the next
   itinerary generation call has it as real context (including for the agent's travel-time tool calls) — it
   does not instantly recompute routes without a regeneration pass.
-- `docker-compose.yml` is dev-only (bind-mounted source, `runserver`/`next dev`, no `DEBUG=False` hardening).
-  No production deployment config exists; nothing has been deployed anywhere.
