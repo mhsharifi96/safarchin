@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_ENV="$ROOT_DIR/backend/.env"
 FRONTEND_ENV="$ROOT_DIR/frontend/.env.local"
-export BACKEND_HOST_PORT=8025
+export BACKEND_HOST_PORT=8125
 export FRONTEND_HOST_PORT=3025
 
 env_value() {
@@ -45,10 +45,11 @@ if [ "$hosts_value" = "localhost,127.0.0.1" ] || [ -z "$hosts_value" ]; then
 fi
 
 api_base_value="$(env_value NEXT_PUBLIC_API_BASE_URL "$FRONTEND_ENV")"
-if [ "${api_base_value#*:$BACKEND_HOST_PORT}" = "$api_base_value" ]; then
+if echo "$api_base_value" | grep -Eq "localhost|127\.0\.0\.1"; then
   echo "WARNING: NEXT_PUBLIC_API_BASE_URL in frontend/.env.local is '${api_base_value:-<unset>}'," >&2
-  echo "         which doesn't reference :$BACKEND_HOST_PORT (the backend's port below). This gets baked" >&2
-  echo "         into the frontend build -- the browser will call the wrong place until it's fixed." >&2
+  echo "         still a local-dev default. This gets baked into the frontend build -- the browser" >&2
+  echo "         will call the wrong place until it's set to this server's real domain (nginx proxies" >&2
+  echo "         /api/ to the backend, so no port needed)." >&2
 fi
 
 echo "==> Loading frontend/.env.local (NEXT_PUBLIC_* values are baked into the build)"
@@ -64,15 +65,18 @@ docker compose -f docker-compose.prod.yml up -d --build
 cat <<EOF
 
 Stack is up:
-  frontend -> http://localhost:$FRONTEND_HOST_PORT  (or this server's real domain, once DNS/proxy point here)
-  backend  -> http://localhost:$BACKEND_HOST_PORT
+  frontend -> 127.0.0.1:$FRONTEND_HOST_PORT  (loopback only)
+  backend  -> 127.0.0.1:$BACKEND_HOST_PORT   (loopback only)
   db/redis -> internal only, not published to the host
+
+Public traffic reaches these through the HOST's own nginx (not a container),
+proxying the real domain to the loopback ports above. See
+deploy/nginx-safarchin.conf for that vhost config and install steps.
 
   docker compose -f docker-compose.prod.yml ps        # status
   docker compose -f docker-compose.prod.yml logs -f    # logs
   docker compose -f docker-compose.prod.yml down       # stop
 
-Not set up by this script: TLS/a reverse proxy in front of ports $FRONTEND_HOST_PORT/$BACKEND_HOST_PORT, and
-a backup strategy for the pgdata volume. Put a reverse proxy (nginx/Caddy/Traefik)
-in front for real public traffic.
+Not set up by this script: TLS (see deploy/nginx-safarchin.conf's certbot note),
+and a backup strategy for the pgdata volume.
 EOF

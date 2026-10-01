@@ -43,8 +43,6 @@ services:
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_REDIS_URL: redis://redis:6379/1
-    ports:
-      - "${BACKEND_HOST_PORT:-8025}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -54,6 +52,10 @@ services:
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    ports:
+      # Bound to loopback only -- the host's own nginx (see deploy/nginx-safarchin.conf)
+      # reverse-proxies the public domain to this port. Not reachable from outside.
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8025}:8000"
 
   celery_worker:
     build:
@@ -85,7 +87,8 @@ services:
         NEXT_PUBLIC_NESHAN_WEB_SDK_KEY: ${NEXT_PUBLIC_NESHAN_WEB_SDK_KEY}
     restart: always
     ports:
-      - "${FRONTEND_HOST_PORT:-3025}:3000"
+      # Bound to loopback only -- same reasoning as backend's port above.
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3025}:3000"
     depends_on:
       - backend
 
